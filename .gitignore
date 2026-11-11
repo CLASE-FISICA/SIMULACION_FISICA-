@@ -1,0 +1,24 @@
+# Entorno
+.venv/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Editores
+.idea/
+.vscode/
+
+# Secretos
+.env
+.env.*
+!.env.example
+
+# Salidas locales
+*.db
+*.sqlite3
+dist/
+build/
+docs/_preview/

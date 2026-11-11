@@ -1,0 +1,998 @@
+openapi: 3.1.0
+info:
+  title: Verificador de ventilación NTC 3631 — API v1
+  version: 0.1.0-draft
+  summary: Verifica el cumplimiento de ventilación de recintos interiores con artefactos a gas.
+  description: |
+    La API expone el motor normativo (numerales 4.1.1, 4.1.2, 4.2.1, 4.2.2, 4.3, 4.4 y
+    Anexo D de la NTC 3631) y guarda cada evaluación con la versión de la norma con la
+    que fue calculada.
+
+    Reglas del contrato:
+    - El navegador nunca calcula. Toda decisión viene de esta API.
+    - Todo veredicto cita el numeral que lo respalda.
+    - La herramienta verifica y documenta. No certifica instalaciones.
+
+    Este documento es la versión 0 del contrato, escrita antes que el código
+    (ver ADR-003). Se congela en el sprint 3 y a partir de ahí solo crece de forma
+    aditiva: campos nuevos opcionales, nunca renombrados ni eliminados.
+  contact:
+    name: Equipo Backend — BE2
+  license:
+    name: Uso interno SENA CIDM
+servers:
+  - url: http://localhost:8000
+    description: Desarrollo local
+  - url: https://api.simulador-ntc3631.example
+    description: Despliegue (por definir, ver decisiones pendientes del plan)
+
+tags:
+  - name: estado
+    description: Salud del servicio. Sin autenticación.
+  - name: normativa
+    description: Constantes normativas con su numeral y su estado de validación.
+  - name: evaluaciones
+    description: Cálculo y expediente de cada verificación.
+  - name: catalogos
+    description: Rejillas, conductos, casos precargados y listas de selección.
+  - name: contenido
+    description: Páginas del módulo de aprendizaje.
+  - name: taller
+    description: Ejercicios, intentos y corrección automática.
+
+security:
+  - cookieAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [estado]
+      summary: Estado del servicio
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          description: Servicio operativo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Estado"
+        "503":
+          description: Servicio no disponible
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problema"
+
+  /v1/normativa:
+    get:
+      tags: [normativa]
+      summary: Constantes normativas con su numeral
+      operationId: getNormativa
+      security: []
+      description: |
+        Devuelve la copia de solo lectura de las constantes. La fuente de verdad es el
+        motor; una prueba verifica que la copia coincide. Si no coinciden, la respuesta
+        no debe considerarse válida.
+      responses:
+        "200":
+          description: Catálogo de constantes
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [constantes, area_minima_abertura_cm2, norma_version]
+                properties:
+                  constantes:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Constante"
+                  area_minima_abertura_cm2:
+                    type: number
+                    description: Derivada de la dimensión mínima de 8 cm. No se escribe a mano.
+                    examples: [64.0]
+                  norma_version:
+                    type: string
+                    examples: ["NTC 3631:2020"]
+                  nota:
+                    type: string
+
+  /v1/catalogos/rejillas:
+    get:
+      tags: [catalogos]
+      summary: Rejillas comerciales con área efectiva
+      operationId: listarRejillas
+      security: []
+      parameters:
+        - name: area_minima_cm2
+          in: query
+          description: Devuelve solo las rejillas cuya área efectiva alcanza este valor.
+          schema:
+            type: number
+            minimum: 0
+        - name: geometria
+          in: query
+          schema:
+            type: string
+            enum: [cuadrada, rectangular, circular]
+      responses:
+        "200":
+          description: Lista de rejillas
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, catalogo_version, provisional]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Rejilla"
+                  catalogo_version:
+                    type: string
+                  provisional:
+                    type: boolean
+                    description: |
+                      Verdadero mientras los datos no estén validados con proveedor real.
+                      El frontend debe mostrarlo.
+        "400":
+          $ref: "#/components/responses/ErrorSolicitud"
+
+  /v1/catalogos/conductos:
+    get:
+      tags: [catalogos]
+      summary: Conductos comerciales de 3 a 10 pulgadas
+      operationId: listarConductos
+      security: []
+      parameters:
+        - name: area_minima_cm2
+          in: query
+          schema:
+            type: number
+            minimum: 0
+      responses:
+        "200":
+          description: Lista de conductos
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, catalogo_version, provisional]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Conducto"
+                  catalogo_version:
+                    type: string
+                  provisional:
+                    type: boolean
+
+  /v1/catalogos/casos:
+    get:
+      tags: [catalogos]
+      summary: Los 8 casos pedagógicos precargados
+      operationId: listarCasos
+      security: []
+      responses:
+        "200":
+          description: Casos del libro con su resultado esperado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Caso"
+
+  /v1/catalogos/parametros:
+    get:
+      tags: [catalogos]
+      summary: Parámetros normativos para consulta en la web
+      operationId: listarParametros
+      security: []
+      responses:
+        "200":
+          description: Constantes con su estado de validación
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Constante"
+
+  /v1/catalogos/listas:
+    get:
+      tags: [catalogos]
+      summary: Las cinco listas desplegables del libro
+      operationId: listarListas
+      security: []
+      description: |
+        Unifica las cinco listas del Excel (tipo de recinto, método inicial, tipo de
+        ventilación, método recomendado y tipo de construcción) en un solo recurso, para
+        que el frontend no las tenga escritas en el código.
+      responses:
+        "200":
+          description: Listas de selección
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: string
+                examples:
+                  - tipo_recinto: [cocina, dormitorio, bano, monoespacial, comercial, industrial, otro]
+                    metodo: [metodo_estandar, metodo_1, metodo_2, combinacion, suministro_mecanico, anexo_d]
+
+  /v1/evaluaciones/preview:
+    post:
+      tags: [evaluaciones]
+      summary: Evalúa un recinto sin guardarlo
+      operationId: previsualizarEvaluacion
+      description: |
+        Devuelve el veredicto con la traza completa. No persiste nada y no consume cuota
+        de historial. Es el endpoint que usa el simulador mientras el aprendiz escribe.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SolicitudEvaluacion"
+      responses:
+        "200":
+          description: Resultado del cálculo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resultado"
+        "400":
+          $ref: "#/components/responses/ErrorSolicitud"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "422":
+          $ref: "#/components/responses/EntradaInvalida"
+
+  /v1/evaluaciones:
+    post:
+      tags: [evaluaciones]
+      summary: Calcula y guarda una evaluación
+      operationId: crearEvaluacion
+      description: |
+        Guarda el resultado junto con una copia inmutable de las entradas y de la versión
+        de la norma. Una evaluación guardada nunca cambia de resultado, aunque el motor
+        cambie después.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: Evita duplicados si el cliente reintenta la petición.
+          schema:
+            type: string
+            maxLength: 64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SolicitudEvaluacion"
+      responses:
+        "201":
+          description: Evaluación creada
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvaluacionGuardada"
+        "400":
+          $ref: "#/components/responses/ErrorSolicitud"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "409":
+          description: Ya existe una evaluación con esa Idempotency-Key
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problema"
+        "422":
+          $ref: "#/components/responses/EntradaInvalida"
+    get:
+      tags: [evaluaciones]
+      summary: Lista evaluaciones
+      operationId: listarEvaluaciones
+      description: |
+        El aprendiz ve solo las suyas. El instructor ve las de su ficha. El administrador
+        ve todas. El filtrado por rol no es opcional: es una prueba de seguridad.
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: ficha_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: aprendiz_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: veredicto
+          in: query
+          schema:
+            $ref: "#/components/schemas/Veredicto"
+        - name: desde
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: hasta
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: orden
+          in: query
+          schema:
+            type: string
+            enum: [fecha_desc, fecha_asc]
+            default: fecha_desc
+      responses:
+        "200":
+          description: Página de evaluaciones
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginaEvaluaciones"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+
+  /v1/evaluaciones/{evaluacion_id}:
+    parameters:
+      - $ref: "#/components/parameters/EvaluacionId"
+    get:
+      tags: [evaluaciones]
+      summary: Detalle de una evaluación con su traza
+      operationId: obtenerEvaluacion
+      responses:
+        "200":
+          description: Evaluación guardada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvaluacionGuardada"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+    delete:
+      tags: [evaluaciones]
+      summary: Elimina una evaluación
+      operationId: eliminarEvaluacion
+      responses:
+        "204":
+          description: Eliminada
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+
+  /v1/evaluaciones/{evaluacion_id}/reporte.pdf:
+    parameters:
+      - $ref: "#/components/parameters/EvaluacionId"
+    get:
+      tags: [evaluaciones]
+      summary: Reporte en PDF con numerales y medidas
+      operationId: descargarReporte
+      description: |
+        Genera el PDF a partir del resultado guardado, no de un cálculo nuevo. Debe
+        incluir: datos del aprendiz, entradas, paso a paso con numerales, medidas de las
+        aberturas y el aviso de que la herramienta verifica y no certifica.
+      responses:
+        "200":
+          description: Documento PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "409":
+          description: El reporte aún se está generando
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problema"
+        "501":
+          description: |
+            Generación no habilitada en esta versión. El mecanismo es por cola
+            (ADR-003, D8) y se implementa en el sprint 4.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problema"
+
+  /v1/contenido/{slug}:
+    get:
+      tags: [contenido]
+      summary: Página del módulo de aprendizaje
+      operationId: obtenerContenido
+      security: []
+      description: |
+        Devuelve el contenido transcrito y validado por el instructor. Nunca el texto
+        íntegro de la norma: solo explicación propia con la cita del numeral.
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+            examples: ["generalidades", "metodo-1", "anexo-d"]
+      responses:
+        "200":
+          description: Página de contenido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagina"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+
+  /v1/taller/{ejercicio_id}/intentos:
+    parameters:
+      - name: ejercicio_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [taller]
+      summary: Registra la respuesta del aprendiz y la corrige
+      operationId: registrarIntento
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SolicitudIntento"
+      responses:
+        "201":
+          description: Intento corregido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Intento"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "422":
+          $ref: "#/components/responses/EntradaInvalida"
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sesion
+      description: |
+        JWT de corta duración en cookie httpOnly, emitido por el módulo de cuentas (BE3).
+        Nunca en localStorage.
+
+  parameters:
+    EvaluacionId:
+      name: evaluacion_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+        examples: ["8f14e45f-ceea-4a67-9a3c-1b2d3e4f5a6b"]
+
+  responses:
+    ErrorSolicitud:
+      description: La solicitud no se puede procesar
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problema"
+    EntradaInvalida:
+      description: Uno o más campos no cumplen las reglas
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problema"
+          examples:
+            altura_cero:
+              summary: Altura no positiva
+              value:
+                type: "https://simulador-ntc3631.example/problemas/validacion"
+                title: "Entrada inválida"
+                status: 422
+                detail: "El campo alto_m debe ser mayor que cero."
+                instance: "/v1/evaluaciones/preview"
+                code: "validacion"
+                errors:
+                  - campo: "recinto.alto_m"
+                    mensaje: "debe ser mayor que cero"
+    NoAutenticado:
+      description: Falta la sesión
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problema"
+    Prohibido:
+      description: La sesión no tiene permiso sobre este recurso
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problema"
+    NoEncontrado:
+      description: El recurso no existe o no pertenece al usuario
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problema"
+
+  schemas:
+    Estado:
+      type: object
+      required: [estado, version]
+      properties:
+        estado:
+          type: string
+          enum: [ok, degradado]
+        version:
+          type: string
+        motor_version:
+          type: string
+        norma_version:
+          type: string
+
+    Problema:
+      type: object
+      description: Error en formato RFC 9457 más un código propio del dominio.
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+          examples: ["https://simulador-ntc3631.example/problemas/validacion"]
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        code:
+          type: string
+          description: Código estable para el cliente, independiente del texto.
+          examples: ["validacion", "sin_artefactos", "no_encontrado", "sin_permiso"]
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              campo:
+                type: string
+              mensaje:
+                type: string
+
+    Constante:
+      type: object
+      required: [clave, valor, unidad, numeral]
+      properties:
+        clave:
+          type: string
+          examples: ["volumen_minimo_por_kw"]
+        valor:
+          type: number
+          examples: [3.4]
+        unidad:
+          type: string
+          examples: ["m3/kW"]
+        numeral:
+          type: string
+          examples: ["4.1.1"]
+        descripcion:
+          type: string
+        estado_validacion:
+          type: string
+          enum: [validado, pendiente_instructor, practica_de_diseno]
+
+    Rejilla:
+      type: object
+      required: [id, nombre, ancho_cm, alto_cm, area_total_cm2, area_efectiva_cm2]
+      properties:
+        id:
+          type: string
+        nombre:
+          type: string
+          examples: ["15x15"]
+        ancho_cm:
+          type: number
+        alto_cm:
+          type: number
+        area_total_cm2:
+          type: number
+        area_efectiva_cm2:
+          type: number
+          description: Área realmente libre. Ya lleva aplicado el factor de obturación.
+        factor_obturacion:
+          type: number
+          default: 0.6
+        geometria:
+          type: string
+          enum: [cuadrada, rectangular, circular]
+        proveedor:
+          type: string
+          nullable: true
+
+    Conducto:
+      type: object
+      required: [id, nombre, diametro_pulgadas, area_cm2]
+      properties:
+        id:
+          type: string
+        nombre:
+          type: string
+          examples: ["6 pulgadas"]
+        diametro_pulgadas:
+          type: number
+          examples: [6]
+        diametro_cm:
+          type: number
+        area_cm2:
+          type: number
+        factor_obturacion:
+          type: number
+          description: |
+            Se declara explícitamente porque no está en la norma. Si el instructor decide
+            que el conducto debe tener la sección igual al área libre, este factor es 1,0.
+
+    Caso:
+      type: object
+      required: [id, nombre, recinto, artefactos]
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        recinto:
+          $ref: "#/components/schemas/Recinto"
+        artefactos:
+          type: array
+          items:
+            $ref: "#/components/schemas/Artefacto"
+        numeral_esperado:
+          type: string
+        relacion_esperada:
+          type: number
+        resultado_esperado:
+          type: string
+          description: Texto con el dimensionamiento esperado, listo para mostrar.
+
+    Artefacto:
+      type: object
+      required: [nombre, potencia_kw]
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+        potencia_kw:
+          type: number
+          exclusiveMinimum: 0
+          description: Potencia nominal declarada por el fabricante.
+        circuito:
+          type: string
+          enum: [abierto, estanco]
+          default: abierto
+          description: Los de circuito estanco (Tipo C) no demandan aire del recinto.
+        diametro_conector_cm:
+          type: number
+          exclusiveMinimum: 0
+          description: Necesario para el Método 2 (numeral 4.2.2).
+
+    Recinto:
+      type: object
+      required: [ancho_m, fondo_m, alto_m]
+      properties:
+        ancho_m:
+          type: number
+          exclusiveMinimum: 0
+        fondo_m:
+          type: number
+          exclusiveMinimum: 0
+        alto_m:
+          type: number
+          exclusiveMinimum: 0
+        tipo:
+          type: string
+          enum: [cocina, dormitorio, bano, monoespacial, comercial, industrial, otro]
+          default: cocina
+        nivel:
+          type: string
+          enum: [sobre_primer_sotano, primer_sotano, bajo_primer_sotano]
+          default: sobre_primer_sotano
+        altitud_msnm:
+          type: number
+          minimum: 0
+          default: 1000
+          description: Por debajo de 260 msnm aplica el Anexo D.
+        densidad_gas_relativa:
+          type: number
+          exclusiveMinimum: 0
+          default: 0.6
+        volumen_comunicado_m3:
+          type: number
+          minimum: 0
+          default: 0
+
+    Opciones:
+      type: object
+      properties:
+        aplicar_margen_muebles:
+          type: boolean
+          default: false
+          description: |
+            Descuenta 20 % del volumen. Es recomendación del instructor, no texto de la
+            norma; si se activa, el resultado debe declararlo.
+
+    SolicitudEvaluacion:
+      type: object
+      required: [recinto, artefactos]
+      properties:
+        recinto:
+          $ref: "#/components/schemas/Recinto"
+        artefactos:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/Artefacto"
+        opciones:
+          $ref: "#/components/schemas/Opciones"
+        ficha_id:
+          type: string
+          format: uuid
+          description: Necesario para que el instructor vea el resultado.
+
+    Veredicto:
+      type: string
+      enum: [cumple, no_cumple, no_permitido]
+      description: |
+        no_permitido no es un fallo de cálculo: es una restricción de ubicación
+        (dormitorio con circuito abierto, bajo el primer sótano, gas denso en sótano).
+
+    Paso:
+      type: object
+      required: [numeral, titulo, detalle]
+      properties:
+        numeral:
+          type: string
+          examples: ["4.1.1"]
+        titulo:
+          type: string
+        detalle:
+          type: string
+        valor:
+          type: string
+          nullable: true
+
+    Requerimiento:
+      type: object
+      description: |
+        Abertura u obra exigida. En la versión 0 llega vacío: el dimensionamiento entra
+        con los numerales 4.1.2 a 4.4 y el Anexo D. El campo existe desde ahora para que
+        añadirlo no rompa el contrato.
+      properties:
+        numeral:
+          type: string
+        descripcion:
+          type: string
+        area_libre_min_cm2:
+          type: number
+        cantidad:
+          type: integer
+        ubicacion:
+          type: string
+        rejilla_sugerida:
+          type: string
+        elemento_sugerido:
+          type: string
+        cumple:
+          type: boolean
+        nota:
+          type: string
+
+    Resultado:
+      type: object
+      required:
+        - veredicto
+        - metodo
+        - numeral
+        - resumen
+        - volumen_m3
+        - potencia_agregada_kw
+        - pasos
+        - norma_version
+        - motor_version
+      properties:
+        veredicto:
+          $ref: "#/components/schemas/Veredicto"
+        metodo:
+          type: string
+          examples: ["Método estándar"]
+        numeral:
+          type: string
+          examples: ["4.1.1"]
+        resumen:
+          type: string
+        volumen_m3:
+          type: number
+        volumen_efectivo_m3:
+          type: number
+          description: Volumen después del margen por muebles, si se aplicó.
+        potencia_agregada_kw:
+          type: number
+          description: Excluye los artefactos de circuito estanco.
+        potencia_excluida_kw:
+          type: number
+        volumen_requerido_m3:
+          type: number
+        relacion_m3_kw:
+          type: number
+          nullable: true
+        pasos:
+          type: array
+          items:
+            $ref: "#/components/schemas/Paso"
+        requerimientos:
+          type: array
+          items:
+            $ref: "#/components/schemas/Requerimiento"
+        advertencias:
+          type: array
+          items:
+            type: string
+        norma_version:
+          type: string
+          examples: ["NTC 3631:2020"]
+        motor_version:
+          type: string
+          examples: ["0.1.0"]
+        generado_en:
+          type: string
+          format: date-time
+
+    EvaluacionGuardada:
+      type: object
+      required: [id, creada_en, entradas, resultado]
+      properties:
+        id:
+          type: string
+          format: uuid
+        creada_en:
+          type: string
+          format: date-time
+        ficha_id:
+          type: string
+          format: uuid
+          nullable: true
+        aprendiz_id:
+          type: string
+          format: uuid
+        entradas:
+          $ref: "#/components/schemas/SolicitudEvaluacion"
+        resultado:
+          $ref: "#/components/schemas/Resultado"
+
+    PaginaEvaluaciones:
+      type: object
+      required: [items, total, page, size, pages]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluacionGuardada"
+        total:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer
+        pages:
+          type: integer
+
+    Pagina:
+      type: object
+      required: [slug, titulo]
+      properties:
+        slug:
+          type: string
+        titulo:
+          type: string
+        numerales:
+          type: array
+          items:
+            type: string
+        bloques:
+          type: array
+          description: Bloques de contenido tipados (texto, imagen, nota, definición).
+          items:
+            type: object
+            required: [tipo]
+            properties:
+              tipo:
+                type: string
+                enum: [texto, imagen, nota, definicion, tabla]
+              contenido:
+                type: string
+                nullable: true
+              url:
+                type: string
+                nullable: true
+              alt:
+                type: string
+                nullable: true
+
+    SolicitudIntento:
+      type: object
+      required: [respuesta]
+      properties:
+        respuesta:
+          type: object
+          description: Las magnitudes que el aprendiz calculó.
+          properties:
+            relacion_m3_kw:
+              type: number
+            veredicto:
+              $ref: "#/components/schemas/Veredicto"
+            area_libre_cm2:
+              type: number
+
+    Intento:
+      type: object
+      required: [id, correcto, retroalimentacion]
+      properties:
+        id:
+          type: string
+          format: uuid
+        correcto:
+          type: boolean
+        retroalimentacion:
+          type: string
+        esperado:
+          $ref: "#/components/schemas/SolicitudIntento"

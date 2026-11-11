@@ -70,12 +70,15 @@ def registrar(ejercicio_id: str, solicitud: SolicitudIntentoDTO, usuario: Usuari
                     f"{solicitud.respuesta.relacion_m3_kw:.3f} m³/kW."
                 )
 
-    if solicitud.respuesta.veredicto is not None and esperado.veredicto is not None:
-        if solicitud.respuesta.veredicto != esperado.veredicto:
-            correcto = False
-            detalles.append(
-                f"El veredicto esperado es «{esperado.veredicto}» y llegó «{solicitud.respuesta.veredicto}»."
-            )
+    if (
+        solicitud.respuesta.veredicto is not None
+        and esperado.veredicto is not None
+        and solicitud.respuesta.veredicto != esperado.veredicto
+    ):
+        correcto = False
+        detalles.append(
+            f"El veredicto esperado es «{esperado.veredicto}» y llegó «{solicitud.respuesta.veredicto}»."
+        )
 
     retroalimentacion = (
         "Respuesta correcta. El recinto no cumple el método estándar."

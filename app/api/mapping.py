@@ -105,6 +105,7 @@ def evaluacion_a_dto(almacenada: EvaluacionAlmacenada) -> EvaluacionGuardadaDTO:
             artefactos=[ArtefactoDTO(**a.model_dump()) for a in entradas.artefactos],
             opciones=OpcionesDTO(**entradas.opciones.model_dump()),
             ficha_id=entradas.ficha_id,
+            metodo=entradas.metodo,
         ),
         resultado=almacenada.resultado,
     )

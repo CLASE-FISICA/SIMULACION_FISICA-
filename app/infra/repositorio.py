@@ -45,7 +45,7 @@ class Filtros:
 class RepositorioEvaluaciones:
     def __init__(self) -> None:
         self._items: dict[str, EvaluacionAlmacenada] = {}
-        self._idempotencia: dict[str, str] = {}
+        self._idempotencia: dict[tuple[str, str], str] = {}
         self._lock = threading.Lock()
 
     def crear(
@@ -57,8 +57,9 @@ class RepositorioEvaluaciones:
         idempotency_key: str | None = None,
     ) -> EvaluacionAlmacenada:
         with self._lock:
-            if idempotency_key and idempotency_key in self._idempotencia:
-                return self._items[self._idempotencia[idempotency_key]]
+            clave = (aprendiz_id, idempotency_key) if idempotency_key else None
+            if clave is not None and clave in self._idempotencia:
+                return self._items[self._idempotencia[clave]]
             almacenada = EvaluacionAlmacenada(
                 id=str(uuid.uuid4()),
                 creada_en=datetime.now(UTC),
@@ -68,16 +69,24 @@ class RepositorioEvaluaciones:
                 resultado=resultado,
             )
             self._items[almacenada.id] = almacenada
-            if idempotency_key:
-                self._idempotencia[idempotency_key] = almacenada.id
+            if clave is not None:
+                self._idempotencia[clave] = almacenada.id
             return almacenada
 
-    def obtener(self, evaluacion_id: str, *, aprendiz_id: str | None = None) -> EvaluacionAlmacenada:
+    def obtener(
+        self,
+        evaluacion_id: str,
+        *,
+        aprendiz_id: str | None = None,
+        ficha_id: str | None = None,
+    ) -> EvaluacionAlmacenada:
         almacenada = self._items.get(evaluacion_id)
         if almacenada is None:
             raise NoEncontrado(evaluacion_id)
         if aprendiz_id is not None and almacenada.aprendiz_id != aprendiz_id:
             # Se responde "no existe" a propósito: no se filtra que el recurso exista.
+            raise NoEncontrado(evaluacion_id)
+        if ficha_id is not None and almacenada.ficha_id != ficha_id:
             raise NoEncontrado(evaluacion_id)
         return almacenada
 
@@ -97,10 +106,19 @@ class RepositorioEvaluaciones:
         inicio = (filtros.page - 1) * filtros.size
         return items[inicio : inicio + filtros.size], total
 
-    def eliminar(self, evaluacion_id: str, *, aprendiz_id: str | None = None) -> None:
+    def eliminar(
+        self,
+        evaluacion_id: str,
+        *,
+        aprendiz_id: str | None = None,
+        ficha_id: str | None = None,
+    ) -> None:
         with self._lock:
-            self.obtener(evaluacion_id, aprendiz_id=aprendiz_id)
+            self.obtener(evaluacion_id, aprendiz_id=aprendiz_id, ficha_id=ficha_id)
             del self._items[evaluacion_id]
+            for clave, asociado in list(self._idempotencia.items()):
+                if asociado == evaluacion_id:
+                    del self._idempotencia[clave]
 
     def vaciar(self) -> None:
         """Solo para pruebas."""

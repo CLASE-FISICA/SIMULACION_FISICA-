@@ -18,6 +18,7 @@ from app.api.security import UsuarioActual
 from app.application import evaluaciones as caso_uso
 from app.config import ajustes
 from app.domain.errors import ErrorDeDominio
+from app.domain.modelos import ErrorDominio as ErrorMotorBE1
 from app.infra.repositorio import Filtros, NoEncontrado, repositorio
 
 router = APIRouter(prefix="/v1/evaluaciones", tags=["evaluaciones"])
@@ -40,10 +41,10 @@ def _alcance(usuario: object) -> str | None:
 def preview(solicitud: SolicitudEvaluacionDTO, usuario: UsuarioActual) -> ResultadoDTO:
     try:
         return caso_uso.calcular(solicitud)
-    except ErrorDeDominio as exc:
+    except (ErrorDeDominio, ErrorMotorBE1) as exc:
         raise Problema(
             status=422,
-            code=exc.codigo,
+            code=exc.codigo if isinstance(exc, ErrorDeDominio) else "validacion",
             title="No se puede evaluar el recinto",
             detail=str(exc),
         ) from exc
@@ -68,10 +69,10 @@ def crear(
             repositorio=repositorio,
             idempotency_key=idempotency_key,
         )
-    except ErrorDeDominio as exc:
+    except (ErrorDeDominio, ErrorMotorBE1) as exc:
         raise Problema(
             status=422,
-            code=exc.codigo,
+            code=exc.codigo if isinstance(exc, ErrorDeDominio) else "validacion",
             title="No se puede evaluar el recinto",
             detail=str(exc),
         ) from exc
@@ -97,7 +98,14 @@ def listar(
         veredicto=veredicto,
         orden=orden,
     )
-    if usuario.rol == "instructor" and usuario.ficha_id and not ficha_id:
+    if usuario.rol == "instructor":
+        if not usuario.ficha_id or (ficha_id and ficha_id != usuario.ficha_id):
+            raise Problema(
+                status=403,
+                code="sin_permiso",
+                title="La sesión no tiene permiso sobre esta ficha",
+                detail="El instructor solo puede consultar evaluaciones de su ficha asignada.",
+            )
         filtros.ficha_id = usuario.ficha_id
     return caso_uso.listar(filtros, repositorio=repositorio, alcance=_alcance(usuario))
 
@@ -110,6 +118,10 @@ def listar(
 def obtener(evaluacion_id: str, usuario: UsuarioActual) -> EvaluacionGuardadaDTO:
     try:
         almacenada = repositorio.obtener(evaluacion_id, aprendiz_id=_alcance(usuario))
+        if usuario.rol == "instructor" and (
+            not usuario.ficha_id or almacenada.ficha_id != usuario.ficha_id
+        ):
+            raise NoEncontrado(evaluacion_id)
     except NoEncontrado as exc:
         raise Problema(
             status=404,
@@ -127,7 +139,13 @@ def obtener(evaluacion_id: str, usuario: UsuarioActual) -> EvaluacionGuardadaDTO
 )
 def eliminar(evaluacion_id: str, usuario: UsuarioActual) -> Response:
     try:
-        repositorio.eliminar(evaluacion_id, aprendiz_id=_alcance(usuario))
+        if usuario.rol == "instructor" and not usuario.ficha_id:
+            raise NoEncontrado(evaluacion_id)
+        repositorio.eliminar(
+            evaluacion_id,
+            aprendiz_id=_alcance(usuario),
+            ficha_id=usuario.ficha_id if usuario.rol == "instructor" else None,
+        )
     except NoEncontrado as exc:
         raise Problema(
             status=404,
@@ -145,7 +163,13 @@ def eliminar(evaluacion_id: str, usuario: UsuarioActual) -> Response:
 )
 def reporte(evaluacion_id: str, usuario: UsuarioActual) -> Response:
     try:
-        repositorio.obtener(evaluacion_id, aprendiz_id=_alcance(usuario))
+        if usuario.rol == "instructor" and not usuario.ficha_id:
+            raise NoEncontrado(evaluacion_id)
+        repositorio.obtener(
+            evaluacion_id,
+            aprendiz_id=_alcance(usuario),
+            ficha_id=usuario.ficha_id if usuario.rol == "instructor" else None,
+        )
     except NoEncontrado as exc:
         raise Problema(
             status=404,

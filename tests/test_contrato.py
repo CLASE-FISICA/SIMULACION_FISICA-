@@ -85,3 +85,10 @@ def test_esquema_de_error_declarado(contrato: dict) -> None:
     esquema = contrato["components"]["schemas"]["Problema"]
     assert {"type", "title", "status"} <= set(esquema["required"])
     assert "code" in esquema["properties"]
+
+
+def test_metodos_alternos_coinciden_con_el_contrato(contrato: dict) -> None:
+    from app.domain.modelos import Metodo
+
+    solicitud = contrato["components"]["schemas"]["SolicitudEvaluacion"]
+    assert set(solicitud["properties"]["metodo"]["enum"]) == {m.value for m in Metodo}

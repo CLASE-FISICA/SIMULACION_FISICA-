@@ -9,9 +9,13 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 VeredictoDTO = Literal["cumple", "no_cumple", "no_permitido"]
+MetodoDTO = Literal[
+    "4.1.1", "4.1.2a", "4.1.2b", "4.2.1-directa", "4.2.1-vertical",
+    "4.2.1-horizontal", "4.2.2", "4.3", "anexo-d", "4.4",
+]
 
 
 # --- Solicitud --------------------------------------------------------------
@@ -24,6 +28,16 @@ class ArtefactoDTO(BaseModel):
     potencia_kw: float = Field(gt=0)
     circuito: Literal["abierto", "estanco"] = "abierto"
     diametro_conector_cm: float | None = Field(default=None, gt=0)
+    tipo_artefacto: Literal["A", "B"] | None = None
+    separacion_lateral_cm: float | None = Field(default=None, ge=0)
+    separacion_posterior_cm: float | None = Field(default=None, ge=0)
+    separacion_frontal_cm: float | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def circuito_y_tipo_coherentes(self) -> ArtefactoDTO:
+        if self.circuito == "estanco" and self.tipo_artefacto is not None:
+            raise ValueError("Un artefacto de circuito estanco es Tipo C, no A ni B")
+        return self
 
 
 class RecintoDTO(BaseModel):
@@ -47,6 +61,7 @@ class OpcionesDTO(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     aplicar_margen_muebles: bool = False
+    extraccion_cocina_m3h: float = Field(default=0, ge=0)
 
 
 class SolicitudEvaluacionDTO(BaseModel):
@@ -56,6 +71,7 @@ class SolicitudEvaluacionDTO(BaseModel):
     artefactos: list[ArtefactoDTO] = Field(min_length=1)
     opciones: OpcionesDTO = Field(default_factory=OpcionesDTO)
     ficha_id: str | None = None
+    metodo: MetodoDTO | None = None
 
 
 # --- Respuesta --------------------------------------------------------------
@@ -80,6 +96,7 @@ class RequerimientoDTO(BaseModel):
     elemento_sugerido: str | None = None
     cumple: bool | None = None
     nota: str | None = None
+    caudal_min_m3h: float | None = None
 
 
 class ResultadoDTO(BaseModel):

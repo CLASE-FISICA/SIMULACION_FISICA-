@@ -109,8 +109,9 @@ A partir del cierre del sprint 3:
 **Por qué:** BE1 estará metiendo el árbol de decisión justo cuando toca congelar. Sin una
 regla escrita, "congelar" significa "hasta que cambie algo", que es nunca.
 
-`Resultado.requerimientos` existe desde la v0 y llega vacío, precisamente para que añadirlo
-en el sprint 4 no rompa nada.
+`Resultado.requerimientos` existe desde la v0; llega vacío si solo se evalúa el método
+estándar, y contiene propuestas de dimensionamiento cuando se pide un método alterno.
+No acredita ejecución de obra ni certifica la instalación.
 
 ### D8 — La generación del PDF va por cola desde el diseño
 

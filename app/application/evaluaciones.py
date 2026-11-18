@@ -12,28 +12,15 @@ from app.api.dto import (
     ResultadoDTO,
     SolicitudEvaluacionDTO,
 )
-from app.api.mapping import a_dominio, a_dto, evaluacion_a_dto
-from app.config import ajustes
-from app.domain.engine import evaluar
+from app.api.mapping import evaluacion_a_dto
+from app.application.motor_be1 import calcular as calcular_motor
 from app.infra.repositorio import Filtros, RepositorioEvaluaciones
 from app.infra.repositorio import NoEncontrado as NoEncontradoRepositorio
 
 
 def calcular(solicitud: SolicitudEvaluacionDTO) -> ResultadoDTO:
     """Calcula sin guardar. Es el endpoint que usa el simulador mientras se escribe."""
-    recinto, artefactos, opciones = a_dominio(solicitud)
-    resultado = evaluar(recinto, artefactos, opciones)
-    return a_dto(
-        resultado,
-        norma_version=ajustes.norma_version,
-        motor_version=_motor_version(),
-    )
-
-
-def _motor_version() -> str:
-    from app import __version__
-
-    return __version__
+    return calcular_motor(solicitud)
 
 
 def crear(

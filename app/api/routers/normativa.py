@@ -13,20 +13,17 @@ from fastapi import APIRouter
 
 from app.api.dto import ConstanteDTO, ListaParametrosDTO, NormativaDTO
 from app.config import ajustes
-from app.domain import constants as C
+from app.domain.normativa import AREA_MINIMA_ABERTURA, CONSTANTES
 
 router = APIRouter(tags=["normativa"])
 
 EstadoValidacion = Literal["validado", "pendiente_instructor", "practica_de_diseno"]
 
-PRACTICAS = {"práctica de diseño", "recomendación del instructor"}
-
-
 def constantes() -> list[ConstanteDTO]:
     salida: list[ConstanteDTO] = []
-    for constante in C.NORMATIVA.values():
+    for constante in CONSTANTES:
         estado: EstadoValidacion = (
-            "practica_de_diseno" if constante.numeral in PRACTICAS else "validado"
+            "practica_de_diseno" if not constante.es_norma else "pendiente_instructor"
         )
         salida.append(
             ConstanteDTO(
@@ -45,7 +42,7 @@ def constantes() -> list[ConstanteDTO]:
 def normativa() -> NormativaDTO:
     return NormativaDTO(
         constantes=constantes(),
-        area_minima_abertura_cm2=C.area_minima_abertura_cm2(),
+        area_minima_abertura_cm2=AREA_MINIMA_ABERTURA.valor,
         norma_version=ajustes.norma_version,
         nota=(
             "Copia de solo lectura. La fuente de verdad es el motor: una prueba verifica "

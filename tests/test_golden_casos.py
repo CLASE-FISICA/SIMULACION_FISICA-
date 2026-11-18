@@ -7,9 +7,11 @@ reproducir el material del instructor y hay que detenerse.
 from __future__ import annotations
 
 import pytest
-from app.api.demo import CASOS, TALLER
+from app.api.demo import CASOS, TALLER, CasoDemo
+from app.api.main import app
 from app.domain.engine import evaluar
 from app.domain.models import Veredicto
+from fastapi.testclient import TestClient
 
 
 @pytest.mark.parametrize(
@@ -60,3 +62,18 @@ def test_taller_ejercicio_1() -> None:
     assert resultado.volumen_m3 == pytest.approx(25.85, abs=0.001)
     assert resultado.relacion_m3_kw == pytest.approx(TALLER.relacion_esperada, abs=0.001)
     assert resultado.veredicto is Veredicto.NO_CUMPLE
+
+
+@pytest.mark.parametrize("caso", CASOS, ids=[f"caso-{c.id}" for c in CASOS])
+def test_ocho_casos_del_libro_pasan_por_el_motor_be1_en_la_api(caso: CasoDemo) -> None:
+    solicitud = {
+        "recinto": caso.recinto.model_dump(mode="json"),
+        "artefactos": [a.model_dump(mode="json") for a in caso.artefactos],
+    }
+    respuesta = TestClient(app).post(
+        "/v1/evaluaciones/preview",
+        json=solicitud,
+        headers={"X-Dev-Usuario": "aprendiz-1", "X-Dev-Rol": "aprendiz"},
+    )
+    assert respuesta.status_code == 200
+    assert respuesta.json()["relacion_m3_kw"] == pytest.approx(caso.relacion_esperada, abs=0.001)

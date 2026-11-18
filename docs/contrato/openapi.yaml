@@ -725,6 +725,22 @@ components:
           type: number
           exclusiveMinimum: 0
           description: Necesario para el Método 2 (numeral 4.2.2).
+        tipo_artefacto:
+          type: string
+          enum: [A, B]
+          description: "Opcional en circuito abierto: B tiene conducto de evacuación; por defecto A. Circuito estanco equivale a C."
+        separacion_lateral_cm:
+          type: number
+          minimum: 0
+          description: Obligatoria para el Método 2 (numeral 4.2.2).
+        separacion_posterior_cm:
+          type: number
+          minimum: 0
+          description: Obligatoria para el Método 2 (numeral 4.2.2).
+        separacion_frontal_cm:
+          type: number
+          minimum: 0
+          description: Obligatoria para el Método 2 (numeral 4.2.2).
 
     Recinto:
       type: object
@@ -770,6 +786,11 @@ components:
           description: |
             Descuenta 20 % del volumen. Es recomendación del instructor, no texto de la
             norma; si se activa, el resultado debe declararlo.
+        extraccion_cocina_m3h:
+          type: number
+          minimum: 0
+          default: 0
+          description: "Caudal de extracción que debe reponerse en el método 4.4."
 
     SolicitudEvaluacion:
       type: object
@@ -788,6 +809,10 @@ components:
           type: string
           format: uuid
           description: Necesario para que el instructor vea el resultado.
+        metodo:
+          type: string
+          enum: ["4.1.1", "4.1.2a", "4.1.2b", "4.2.1-directa", "4.2.1-vertical", "4.2.1-horizontal", "4.2.2", "4.3", "anexo-d", "4.4"]
+          description: "Opcional: dimensiona un método alterno; sin él evalúa el estándar y propone un método en advertencias. Una obra propuesta no acredita que ya esté instalada."
 
     Veredicto:
       type: string
@@ -814,9 +839,7 @@ components:
     Requerimiento:
       type: object
       description: |
-        Abertura u obra exigida. En la versión 0 llega vacío: el dimensionamiento entra
-        con los numerales 4.1.2 a 4.4 y el Anexo D. El campo existe desde ahora para que
-        añadirlo no rompa el contrato.
+        Abertura u obra propuesta por el motor. No acredita ejecución ni certifica la instalación.
       properties:
         numeral:
           type: string
@@ -836,6 +859,9 @@ components:
           type: boolean
         nota:
           type: string
+        caudal_min_m3h:
+          type: number
+          description: "Caudal total mínimo de suministro (combustión más extracción), método 4.4."
 
     Resultado:
       type: object

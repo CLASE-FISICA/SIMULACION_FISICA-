@@ -21,9 +21,9 @@ Documentación interactiva: http://localhost:8000/docs
 | Área | Estado |
 |---|---|
 | Motor: método estándar (4.1.1) y restricciones de ubicación | Implementado |
-| Motor: aberturas (4.1.2, 4.2.1, 4.2.2, 4.3, 4.4, Anexo D) | Pendiente (sprints 2 y 3) |
+| Motor: aberturas (4.1.2, 4.2.1, 4.2.2, 4.3, 4.4, Anexo D) | Integrado desde BE1; validación normativa de métodos alternos pendiente |
 | API: 13 rutas del contrato v1 | Implementadas |
-| Contrato congelado | Pendiente (sprint 3) |
+| Contrato congelado | Pendiente (sprint 3); se añadieron campos opcionales para métodos alternos |
 | Persistencia | En memoria, temporal hasta las migraciones de BD1 |
 | Autenticación | Adaptador de desarrollo; la real es de BE3 (BE13/SE01) |
 | Reporte PDF | Pendiente (sprint 4, BE11) |
@@ -47,6 +47,12 @@ tests/
   test_reglas.py     reglas y bloqueos
   test_normativa.py  las constantes y sus numerales
 ```
+
+El motor alterno proviene del commit `e7f28ac` de la rama `backend` en
+`CLASE-FISICA/SIMULACION_FISICA-`. Se incorporó en `app/domain` sin sobrescribir
+el motor histórico; `app/application/motor_be1.py` adapta sus datos al contrato v1.
+Un `requerimiento` describe una obra propuesta, no acredita que esté construida.
+El catálogo comercial sigue siendo provisional.
 
 ## Calidad
 
@@ -76,6 +82,6 @@ Solo funciona con `DEV_MODE=true`, que es el valor por defecto en local.
 | Variable | Por defecto | Para qué |
 |---|---|---|
 | `DEV_MODE` | `true` | Permite suplantar usuario con cabeceras |
-| `NORMA_VERSION` | `NTC 3631:2020` | Versión que viaja en cada resultado (pendiente confirmar edición) |
+| `NORMA_VERSION` | `NTC 3631 (edición por confirmar con el instructor)` | Versión enviada en resultados, salud y normativa; confirmar antes de publicar |
 | `CATALOGO_PROVISIONAL` | `true` | Marca el catálogo como no validado con proveedor |
 | `PDF_HABILITADO` | `false` | Activa la generación del reporte (sprint 4) |

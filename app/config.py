@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+from app.domain.normativa import VERSION_NORMA
+
 
 def _bool(nombre: str, por_defecto: bool) -> bool:
     valor = os.getenv(nombre)
@@ -23,7 +25,7 @@ class Ajustes:
     """
 
     dev_mode: bool = _bool("DEV_MODE", True)
-    norma_version: str = os.getenv("NORMA_VERSION", "NTC 3631:2020")
+    norma_version: str = os.getenv("NORMA_VERSION", VERSION_NORMA)
     pdf_habilitado: bool = _bool("PDF_HABILITADO", False)
     catalogo_provisional: bool = _bool("CATALOGO_PROVISIONAL", True)
 

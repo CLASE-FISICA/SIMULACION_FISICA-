@@ -24,6 +24,7 @@ from app.api.dto import (
 )
 from app.api.routers.normativa import parametros
 from app.config import ajustes
+from app.domain.modelos import Metodo
 from app.infra import catalogo
 
 router = APIRouter(prefix="/v1/catalogos", tags=["catalogos"])
@@ -114,14 +115,7 @@ def listas() -> dict[str, list[str]]:
             "otro",
         ],
         "nivel": ["sobre_primer_sotano", "primer_sotano", "bajo_primer_sotano"],
-        "metodo": [
-            "metodo_estandar",
-            "metodo_1",
-            "metodo_2",
-            "combinacion",
-            "suministro_mecanico",
-            "anexo_d",
-        ],
+        "metodo": [metodo.value for metodo in Metodo],
         "tipo_ventilacion": [
             "todo_el_aire_del_interior",
             "todo_el_aire_del_exterior",

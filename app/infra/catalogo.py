@@ -13,6 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from app.domain.catalogos import CONDUCTOS_PROVISIONALES
 from app.domain.constants import FACTOR_OBTURACION_REJILLA
 
 CATALOGO_VERSION = "2026.11-provisional"
@@ -79,7 +80,8 @@ REJILLAS: tuple[Rejilla, ...] = (
 )
 
 CONDUCTOS: tuple[Conducto, ...] = tuple(
-    Conducto(f"C-{pulg}\"", float(pulg)) for pulg in (3, 4, 5, 6, 7, 8, 10)
+    Conducto(f"C-{item.diametro_pulg}\"", float(item.diametro_pulg))
+    for item in CONDUCTOS_PROVISIONALES
 )
 
 
